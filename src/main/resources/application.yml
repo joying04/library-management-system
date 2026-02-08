@@ -1,0 +1,75 @@
+# 服务器配置
+server:
+  port: 8080
+  servlet:
+    context-path: /api # 接口前缀
+  tomcat:
+    uri-encoding: UTF-8 # 编码格式
+
+# Spring配置
+spring:
+  # 数据库配置（MySQL 8.0+）
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/library_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: ${DB_PASSWORD:123456}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+  # Redis配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      password: ""
+      timeout: 100000
+      client-type: lettuce
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 2
+          max-wait: -1ms
+
+# MyBatis-Plus配置
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml # Mapper.xml文件路径
+  type-aliases-package: com.wxx.library.entity # 实体类别名包路径
+  configuration:
+    map-underscore-to-camel-case: true # 下划线转驼峰
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印SQL日志
+  global-config:
+    db-config:
+      id-type: AUTO # 主键自增
+      logic-delete-field: deleted # 逻辑删除字段名
+      logic-delete-value: 1 # 逻辑删除值（1-已删除）
+      logic-not-delete-value: 0 # 未删除值（0-正常）
+
+logging:
+  level:
+    # 打印指定Mapper接口的SQL执行日志（含耗时）
+    com.wxx.library.mapper.BorrowMapper: DEBUG
+
+# JWT配置（用户认证）
+jwt:
+  header: Authorization # 请求头名称
+  secret: ${JWT_SECRET:default-jwt-secret-key-for-test-123456} # 密钥（生产环境需修改为复杂密钥）
+  expire: 3600000 # Token过期时间（1小时，单位：毫秒）
+  refresh-expire: 86400000 #刷新令牌过期时间（24h）
+  prefix: Bearer
+
+# 项目自定义配置
+library:
+  borrow:
+    max-count: 5 # 最大借阅数量（每人最多借5本）
+    max-days: 30 # 最长借阅天数（30天）
+  redis:
+    cache-ttl: 3600    # 正常缓存过期时间(秒)
+    cache-null-ttl: 30  # 空值缓存过期时间（秒，防缓存穿透）
+    hot-book-expire: 3600 # 热门图书缓存过期时间（1小时，单位：秒）

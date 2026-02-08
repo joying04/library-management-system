@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wxx.library.mapper.BookMapper">
+    <update id="decreaseStockWithVersion">
+        UPDATE book
+        SET stock = stock - 1,
+        version = version + 1,
+        update_time = NOW()
+        WHERE id = #{bookId}
+        AND version = #{version}
+        AND stock > 0; <!-- 双重保险：防止库存为0仍扣减 -->
+    </update>
+
+    <update id="updateStockWithVersion">
+        UPDATE book
+        SET stock = stock + #{change},
+            version = version + 1,
+            update_time = NOW()
+        WHERE id = #{bookId}
+          AND version = #{version}
+          AND (stock + #{change}) >=0; -- 确保库存不小于0
+    </update>
+</mapper>
+
+
+
+
+
+
+
+

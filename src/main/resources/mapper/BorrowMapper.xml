@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wxx.library.mapper.BorrowMapper">
+
+    <!-- 借阅记录分页查询（关联用户表和图书表） -->
+    <select id="selectBorrowRecordPage" resultType="com.wxx.library.entity.BorrowRecord">
+        SELECT
+            br.id, br.user_id, br.book_id, br.borrow_time, br.return_time,
+            br.expected_return_time, br.status, br.overdue_days,
+            u.`name` AS user_name,
+            b.`name` AS book_name
+        FROM
+            borrow_record br
+                INNER JOIN `user` u ON br.user_id = u.id  -- 仅关联有效用户
+                INNER JOIN book b ON br.book_id = b.id    -- 仅关联有效图书
+            ${ew.customSqlSegment}
+    </select>
+
+    <!-- 更新预计归还时间（乐观锁控制） -->
+    <update id="updateExpectedReturnTime">
+        UPDATE borrow_record
+        SET expected_return_time = #{newExpectedReturnTime},
+            update_time = NOW(),
+            version = version + 1
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND book_id = #{bookId}
+          AND version = #{version}
+          AND status = 1 -- 仅借阅中状态可续借
+          AND deleted = 0
+    </update>
+
+    <!-- 查询借阅记录（含版本号） -->
+    <select id="selectByIdWithVersion" resultType="com.wxx.library.entity.BorrowRecord">
+        SELECT id, expected_return_time, status, version, user_id, book_id
+        FROM borrow_record
+        WHERE id = #{id}
+          AND deleted = 0
+    </select>
+</mapper>
