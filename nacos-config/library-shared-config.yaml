@@ -1,0 +1,70 @@
+# ==========================================
+# Nacos 共享配置模板
+# ==========================================
+# 配置中心：Nacos
+# Data ID: library-shared-config.yaml
+# Group: DEFAULT_GROUP
+# Namespace: dev
+# ==========================================
+
+# JWT配置
+jwt:
+  secret: MyLibrarySystem2024SecretKeyForJWTTokenGenerationAndVerification
+  expire: 86400000  # 24小时（毫秒）
+  refresh-expire: 604800000  # 7天（毫秒）
+  header: Authorization
+  prefix: "Bearer "
+
+# Redis配置
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+          max-wait: 2000ms
+
+# Sentinel配置
+  cloud:
+    sentinel:
+      transport:
+        dashboard: localhost:8080
+        port: 8719
+      eager: true
+
+# MyBatis-Plus配置
+mybatis-plus:
+  mapper-locations: classpath*:mapper/*.xml
+  type-aliases-package: com.wxx.library.common.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# Actuator配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.wxx.library: DEBUG

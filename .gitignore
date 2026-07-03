@@ -1,0 +1,78 @@
+# Maven 构建输出
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE 配置文件
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.vscode/
+
+# 日志文件
+*.log
+logs/
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+*~
+
+# Node.js 相关（前端）
+library-frontend/node_modules/
+library-frontend/dist/
+library-frontend/.env.local
+library-frontend/.env.*.local
+
+# 前端构建输出
+library-frontend/package-lock.json
+library-frontend/yarn.lock
+library-frontend/pnpm-lock.yaml
+
+# 敏感配置文件（包含密码等）
+**/application-local.yml
+**/application-prod.yml
+
+# 数据库备份文件
+*.sql.bak
+*.dump
+
+# 编译输出
+*.class
+*.jar
+*.war
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Gradle
+.gradle/
+build/
+
+# 其他
+LICENSE
+.qoder/
+
+# Docker 相关文件
+Dockerfile
+docker-compose.yml
+docker-compose.yaml
+.dockerignore
+
+# 文本文件
+*.txt
+*.md
+!README.md

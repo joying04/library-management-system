@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wxx.library.book.mapper.BookMapper">
+
+    <select id="selectHotBooks" resultType="com.wxx.library.common.entity.Book">
+        SELECT * FROM book
+        ORDER BY borrow_count DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="decreaseStock">
+        UPDATE book
+        SET stock_count = stock_count - 1,
+            version = version + 1,
+            update_time = NOW()
+        WHERE id = #{bookId}
+          AND version = #{version}
+          AND stock_count > borrow_count
+    </update>
+
+    <update id="increaseBorrowCount">
+        UPDATE book
+        SET borrow_count = borrow_count + 1,
+            update_time = NOW()
+        WHERE id = #{bookId}
+    </update>
+
+    <update id="increaseStock">
+        UPDATE book
+        SET stock_count = stock_count + 1,
+            version = version + 1,
+            update_time = NOW()
+        WHERE id = #{bookId}
+    </update>
+
+</mapper>

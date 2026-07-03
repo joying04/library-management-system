@@ -1,0 +1,79 @@
+# 服务器配置
+server:
+  port: 8080
+
+# Spring 配置
+spring:
+  application:
+    name: library-gateway
+
+  # Nacos 服务发现
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}  # 默认public
+      config:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        file-extension: yml
+        import-check:
+          enabled: false
+
+    # Gateway 路由配置
+    gateway:
+      discovery:
+        locator:
+          enabled: false  # 关闭自动根据服务名创建路由
+      routes:
+        # 用户服务路由
+        - id: library-user
+          uri: lb://library-user
+          predicates:
+            - Path=/api/user/**
+          filters:
+            - StripPrefix=0  # 保留完整路径 /api/user/** 转发到 user 服务
+
+        # 图书服务路由
+        - id: library-book
+          uri: lb://library-book
+          predicates:
+            - Path=/api/book/**
+          filters:
+            - StripPrefix=0  # 保留完整路径 /api/book/** 转发到 book 服务
+
+        # 借阅服务路由
+        - id: library-borrow
+          uri: lb://library-borrow
+          predicates:
+            - Path=/api/borrow/**
+          filters:
+            - StripPrefix=0  # 保留完整路径 /api/borrow/** 转发到 borrow 服务
+
+  # Redis 配置（用于Token黑名单校验）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      password: ""
+      timeout: 5000
+
+# JWT 配置
+jwt:
+  secret: ${JWT_SECRET:default-jwt-secret-key-for-test-123456}
+  prefix: "Bearer"
+  # 网关白名单接口
+gateway:
+  auth:
+    white-list: /api/user/login,/api/user/register,/api/user/auth/refresh-token,/api/book/list,/api/book/detail/**,/api/book/hot,/swagger-ui/**,/v3/api-docs/**
+
+# Sentinel 配置
+spring.cloud.sentinel:
+  transport:
+    dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8080}
+  # 网关流控持久化到Nacos（可选）
+
+# 日志
+logging:
+  level:
+    com.wxx.library.gateway: DEBUG
