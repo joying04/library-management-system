@@ -6,7 +6,7 @@ services:
     image: mysql:8.0
     container_name: library-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: wxx147258
       MYSQL_DATABASE: library_user_db
     ports:
       - "3306:3306"
@@ -65,17 +65,9 @@ services:
     container_name: library-nacos
     environment:
       - MODE=standalone
-      - SPRING_DATASOURCE_PLATFORM=mysql
-      - MYSQL_SERVICE_HOST=mysql
-      - MYSQL_SERVICE_DB_NAME=nacos_config
-      - MYSQL_SERVICE_USER=root
-      - MYSQL_SERVICE_PASSWORD=root
     ports:
       - "8848:8848"
       - "9848:9848"
-    depends_on:
-      mysql:
-        condition: service_healthy
     volumes:
       - nacos_data:/home/nacos/data
       - ./nacos-config:/home/nacos/init.d
