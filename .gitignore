@@ -67,9 +67,7 @@ LICENSE
 .qoder/
 
 # Docker 相关文件
-Dockerfile
-docker-compose.yml
-docker-compose.yaml
+# 注意：Dockerfile 和 docker-compose.yml 是部署配置，需纳入版本管理，不要忽略
 .dockerignore
 
 # 文本文件
