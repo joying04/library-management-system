@@ -11,10 +11,10 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        server-addr: ${NACOS_ADDR:192.168.157.129:8848}
         namespace: ${NACOS_NAMESPACE:}  # 默认public
       config:
-        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        server-addr: ${NACOS_ADDR:192.168.157.129:8848}
         file-extension: yml
         import-check:
           enabled: false
@@ -52,7 +52,7 @@ spring:
   # Redis 配置（用于Token黑名单校验）
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:192.168.157.129}
       port: ${REDIS_PORT:6379}
       database: 0
       password: ""

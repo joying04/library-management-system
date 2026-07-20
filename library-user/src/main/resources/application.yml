@@ -8,17 +8,17 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        server-addr: ${NACOS_ADDR:192.168.157.129:8848}
         namespace: ${NACOS_NAMESPACE:}
       config:
-        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        server-addr: ${NACOS_ADDR:192.168.157.129:8848}
         file-extension: yml
         import-check:
           enabled: false  # 禁用 Nacos 配置检查，使用本地配置
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/library_user_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    url: jdbc:mysql://${MYSQL_HOST:192.168.157.129}:${MYSQL_PORT:3306}/library_user_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:wxx147258}
     hikari:
@@ -30,7 +30,7 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:192.168.157.129}
       port: ${REDIS_PORT:6379}
       database: 0
       password: ""

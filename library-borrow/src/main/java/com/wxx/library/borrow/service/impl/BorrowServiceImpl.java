@@ -18,12 +18,15 @@ import com.wxx.library.borrow.mapper.BookRenewMapper;
 import com.wxx.library.borrow.mapper.BorrowMapper;
 import com.wxx.library.borrow.rabbitmq.BorrowMessageProducer;
 import com.wxx.library.borrow.service.BorrowService;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
@@ -50,88 +53,117 @@ public class BorrowServiceImpl implements BorrowService {
     @Autowired
     private BorrowMessageProducer messageProducer;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    /**
+     * 编程式事务模板：用于借书流程中「锁包事务」——保证事务在分布式锁持有期间提交完成，
+     * 提交后才在 finally 释放锁，避免声明式事务下「锁在提交前释放」导致的超卖并发问题。
+     */
+    private TransactionTemplate transactionTemplate;
+
+    @PostConstruct
+    public void initTransactionTemplate() {
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+    }
+
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Result<Boolean> borrowBook(Long userId, Long bookId) {
         // 1. 获取分布式锁
         String lockKey = SystemConstant.REDIS_LOCK_BORROW_KEY + ":" + bookId;
         RLock lock = redissonClient.getLock(lockKey);
-        
+
+        boolean locked = false;
         try {
-            // 2. 尝试加锁（最多等待3秒，锁10秒后自动释放）
-            if (!lock.tryLock(3, 10, TimeUnit.SECONDS)) {
+            // 2. 尝试加锁（最多等待3秒；不指定租期，交给 Redisson 看门狗自动续期，
+            //    避免固定租期短于事务执行时间导致锁提前释放）
+            locked = lock.tryLock(3, TimeUnit.SECONDS);
+            if (!locked) {
                 throw new BusinessException(ResultCode.SYSTEM_BUSY);
             }
 
-            // 3. 查询用户信息（Feign调用）
-            Result<User> userResult = userFeignClient.getUserById(userId);
-            log.info("[借阅] Feign调用User服务返回: code={}, message={}, data={}", 
-                    userResult.getCode(), userResult.getMessage(), userResult.getData());
-            if (!ResultCode.SUCCESS.getCode().equals(userResult.getCode())) {
-                log.error("[借阅] 用户不存在, userId={}, userResult={}", userId, userResult);
-                throw new BusinessException(ResultCode.USER_NOT_FOUND);
-            }
-            User user = userResult.getData();
-
-            // 4. 检查是否有逾期未还
-            LambdaQueryWrapper<BorrowRecord> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(BorrowRecord::getUserId, userId)
-                    .eq(BorrowRecord::getStatus, 1) // 借阅中
-                    .lt(BorrowRecord::getExpectedReturnTime, LocalDateTime.now());
-            Long overdueCount = borrowMapper.selectCount(queryWrapper);
-            if (overdueCount > 0) {
-                throw new BusinessException(ResultCode.USER_HAS_OVERDUE);
-            }
-
-            // 5. 检查借阅数量限制
-            LambdaQueryWrapper<BorrowRecord> borrowingQuery = new LambdaQueryWrapper<>();
-            borrowingQuery.eq(BorrowRecord::getUserId, userId)
-                    .eq(BorrowRecord::getStatus, 1);
-            Long borrowingCount = borrowMapper.selectCount(borrowingQuery);
-            if (borrowingCount >= user.getMaxBorrowCount()) {
-                throw new BusinessException(ResultCode.BORROW_COUNT_LIMIT);
-            }
-
-            // 6. 查询图书库存（Feign调用）
-            Result<Integer> stockResult = bookFeignClient.getBookStock(bookId);
-            if (!ResultCode.SUCCESS.getCode().equals(stockResult.getCode()) || stockResult.getData() <= 0) {
-                throw new BusinessException(ResultCode.STOCK_NOT_ENOUGH);
-            }
-
-            // 7. 扣减库存（Feign调用，乐观锁）
-            Book book = bookFeignClient.getBookByIdForFeign(bookId).getData();
-            Result<Boolean> decreaseResult = bookFeignClient.decreaseStock(bookId, book.getVersion());
-            if (!ResultCode.SUCCESS.getCode().equals(decreaseResult.getCode())) {
-                throw new BusinessException(ResultCode.STOCK_NOT_ENOUGH);
-            }
-
-            // 8. 创建借阅记录
-            BorrowRecord borrowRecord = new BorrowRecord();
-            borrowRecord.setUserId(userId);
-            borrowRecord.setBookId(bookId);
-            borrowRecord.setBorrowTime(LocalDateTime.now());
-            borrowRecord.setExpectedReturnTime(LocalDateTime.now().plusDays(SystemConstant.BORROW_DAYS));
-            borrowRecord.setStatus(1); // 1-借阅中
-            borrowRecord.setRenewCount(0);
-            borrowMapper.insert(borrowRecord);
-
-            // 9. 增加图书借阅次数（Feign调用）
-            bookFeignClient.increaseBorrowCount(bookId);
-
-            // 10. 发送借阅事件消息（异步）
-            messageProducer.sendBorrowEvent(userId, bookId, "borrow");
-
-            log.info("借阅成功: userId={}, bookId={}", userId, bookId);
-            return Result.success(true);
+            // 事务在锁内执行并提交，提交完成后才会走到 finally 解锁，
+            // 避免声明式事务下「解锁先于提交」的并发窗口导致超卖
+            return transactionTemplate.execute(status -> doBorrowBook(userId, bookId));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new BusinessException(ResultCode.SYSTEM_BUSY);
         } finally {
-            // 11. 释放锁
-            if (lock.isHeldByCurrentThread()) {
+            // 释放锁（仅当本线程确实持有锁时）
+            if (locked && lock.isHeldByCurrentThread()) {
                 lock.unlock();
             }
         }
+    }
+
+    /**
+     * 借书核心业务逻辑，在编程式事务中执行（见 {@link #borrowBook}）。
+     * 抛出 BusinessException（RuntimeException）时事务自动回滚。
+     */
+    private Result<Boolean> doBorrowBook(Long userId, Long bookId) {
+        // 3. 查询用户信息（Feign调用）
+        Result<User> userResult = userFeignClient.getUserById(userId);
+        log.info("[借阅] Feign调用User服务返回: code={}, message={}, data={}",
+                userResult.getCode(), userResult.getMessage(), userResult.getData());
+        if (!ResultCode.SUCCESS.getCode().equals(userResult.getCode())) {
+            log.error("[借阅] 用户不存在, userId={}, userResult={}", userId, userResult);
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        User user = userResult.getData();
+
+        // 4. 检查是否有逾期未还
+        LambdaQueryWrapper<BorrowRecord> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(BorrowRecord::getUserId, userId)
+                .eq(BorrowRecord::getStatus, 1) // 借阅中
+                .lt(BorrowRecord::getExpectedReturnTime, LocalDateTime.now());
+        Long overdueCount = borrowMapper.selectCount(queryWrapper);
+        if (overdueCount > 0) {
+            throw new BusinessException(ResultCode.USER_HAS_OVERDUE);
+        }
+
+        // 5. 检查借阅数量限制
+        LambdaQueryWrapper<BorrowRecord> borrowingQuery = new LambdaQueryWrapper<>();
+        borrowingQuery.eq(BorrowRecord::getUserId, userId)
+                .eq(BorrowRecord::getStatus, 1);
+        Long borrowingCount = borrowMapper.selectCount(borrowingQuery);
+        if (borrowingCount >= user.getMaxBorrowCount()) {
+            throw new BusinessException(ResultCode.BORROW_COUNT_LIMIT);
+        }
+
+        // 6. 查询图书库存（Feign调用）
+        Result<Integer> stockResult = bookFeignClient.getBookStock(bookId);
+        if (!ResultCode.SUCCESS.getCode().equals(stockResult.getCode()) || stockResult.getData() <= 0) {
+            throw new BusinessException(ResultCode.STOCK_NOT_ENOUGH);
+        }
+
+        // 7. 扣减库存（Feign调用，乐观锁）
+        Book book = bookFeignClient.getBookByIdForFeign(bookId).getData();
+        Result<Boolean> decreaseResult = bookFeignClient.decreaseStock(bookId, book.getVersion());
+        if (!ResultCode.SUCCESS.getCode().equals(decreaseResult.getCode())) {
+            throw new BusinessException(ResultCode.STOCK_NOT_ENOUGH);
+        }
+
+        // 8. 创建借阅记录
+        BorrowRecord borrowRecord = new BorrowRecord();
+        borrowRecord.setUserId(userId);
+        borrowRecord.setBookId(bookId);
+        borrowRecord.setBorrowTime(LocalDateTime.now());
+        borrowRecord.setExpectedReturnTime(LocalDateTime.now().plusDays(SystemConstant.BORROW_DAYS));
+        borrowRecord.setStatus(1); // 1-借阅中
+        borrowRecord.setRenewCount(0);
+        borrowMapper.insert(borrowRecord);
+
+        // 9. 增加图书借阅次数（Feign调用）
+        bookFeignClient.increaseBorrowCount(bookId);
+
+        // 10. 发送借阅事件消息（异步）
+        messageProducer.sendBorrowEvent(userId, bookId, borrowRecord.getId(), "borrow");
+
+        // 11. 投递逾期检查延迟消息：到期后自动触发逾期判断（TTL+死信队列实现）
+        messageProducer.sendOverdueCheckDelay(borrowRecord.getId());
+
+        log.info("借阅成功: userId={}, bookId={}", userId, bookId);
+        return Result.success(true);
     }
 
     @Override
@@ -166,7 +198,7 @@ public class BorrowServiceImpl implements BorrowService {
         bookFeignClient.increaseStock(borrowRecord.getBookId());
 
         // 4. 发送归还事件消息（异步）
-        messageProducer.sendBorrowEvent(userId, borrowRecord.getBookId(), "return");
+        messageProducer.sendBorrowEvent(userId, borrowRecord.getBookId(), borrowRecord.getId(), "return");
 
         log.info("归还成功: userId={}, borrowId={}", userId, borrowId);
         return Result.success(true);
@@ -213,7 +245,10 @@ public class BorrowServiceImpl implements BorrowService {
         borrowMapper.updateById(borrowRecord);
 
         // 5. 发送续借事件消息
-        messageProducer.sendBorrowEvent(userId, borrowRecord.getBookId(), "renew");
+        messageProducer.sendBorrowEvent(userId, borrowRecord.getBookId(), borrowRecord.getId(), "renew");
+
+        // 6. 续借延长了应还时间，重新投递一条逾期检查延迟消息，在新的到期时间再次检查
+        messageProducer.sendOverdueCheckDelay(borrowRecord.getId());
 
         log.info("续借成功: userId={}, borrowId={}", userId, renewDTO.getBorrowRecordId());
         return Result.success(bookRenew);

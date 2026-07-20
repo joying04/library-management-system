@@ -4,11 +4,11 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: 192.168.157.129:8848
         namespace: 
         group: DEFAULT_GROUP
       config:
-        server-addr: localhost:8848
+        server-addr: 192.168.157.129:8848
         namespace: 
         group: DEFAULT_GROUP
         file-extension: yaml
@@ -16,12 +16,12 @@ spring:
           enabled: false
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/library_book_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://192.168.157.129:3306/library_book_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: wxx147258
   data:
     redis:
-      host: localhost
+      host: 192.168.157.129
       port: 6379
       password: 
       database: 0

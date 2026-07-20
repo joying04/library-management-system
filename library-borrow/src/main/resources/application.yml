@@ -4,11 +4,11 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: 192.168.157.129:8848
         namespace: 
         group: DEFAULT_GROUP
       config:
-        server-addr: localhost:8848
+        server-addr: 192.168.157.129:8848
         namespace: 
         group: DEFAULT_GROUP
         file-extension: yaml
@@ -24,12 +24,12 @@ spring:
         enabled: true
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/library_borrow_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://192.168.157.129:3306/library_borrow_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: wxx147258
   data:
     redis:
-      host: localhost
+      host: 192.168.157.129
       port: 6379
       password: 
       database: 0
@@ -41,7 +41,7 @@ spring:
           min-idle: 5
           max-wait: 2000ms
   rabbitmq:
-    host: localhost
+    host: 192.168.157.129
     port: 5672
     username: guest
     password: guest
@@ -58,6 +58,13 @@ spring:
           enabled: true
           max-attempts: 3
           initial-interval: 1000ms
+
+# 业务自定义配置
+library:
+  rabbitmq:
+    # 逾期检查延迟队列的 TTL（毫秒）：一条逾期检查消息延迟多久后触发。
+    # 生产环境应等于借阅时长 30 天 = 2592000000；演示/测试可调小（如 60000 = 1分钟）。
+    overdue-delay-ms: 2592000000
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/*.xml

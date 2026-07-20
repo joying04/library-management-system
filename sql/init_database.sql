@@ -127,5 +127,6 @@ CREATE TABLE IF NOT EXISTS `borrow_event` (
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     KEY `idx_user_id` (`user_id`),
     KEY `idx_event_type` (`event_type`),
-    KEY `idx_consume_time` (`consume_time`)
+    KEY `idx_consume_time` (`consume_time`),
+    KEY `idx_message_id` (`message_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='借阅事件记录表';
